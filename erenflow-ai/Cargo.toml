@@ -10,7 +10,7 @@ homepage = "https://github.com/oussamabenhariz/ErenFlowAI"
 documentation = "https://docs.rs/erenflow-ai"
 keywords = ["ai", "agent", "llm", "graph", "workflow"]
 categories = ["algorithms", "development-tools"]
-readme = "README.md"
+readme = "../README.md"
 
 [dependencies]
 # Async runtime
