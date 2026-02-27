@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
 
     let config_path = "examples/qa_agent/config.yaml";
     
-    let agent = match from_config_path(config_path) {
+    let mut agent = match from_config_path(config_path) {
         Ok(agent) => {
             println!("✅ Configuration loaded successfully!");
             println!("   Agent: {}\n", "qa_agent");

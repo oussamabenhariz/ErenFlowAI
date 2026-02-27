@@ -1,11 +1,10 @@
 /// Handler implementations for the QA Agent
-/// Each handler is registered using #[register_handler] for auto-discovery
+/// Each handler is a simple async function that processes state
 
 use erenflow_ai::prelude::*;
 use serde_json::json;
 
 /// Handler 1: Validate and prepare the user input
-#[register_handler]
 pub async fn validate_input(mut state: State) -> Result<State> {
     println!("  ✓ Handler: validate_input");
 
@@ -17,7 +16,7 @@ pub async fn validate_input(mut state: State) -> Result<State> {
 
     // Validate
     if question.is_empty() {
-        return Err(ErenFlowError::InvalidInput(
+        return Err(ErenFlowError::ValidationError(
             "Question cannot be empty".to_string(),
         ));
     }
@@ -36,7 +35,6 @@ pub async fn validate_input(mut state: State) -> Result<State> {
 }
 
 /// Handler 2: Retrieve context for the question
-#[register_handler]
 pub async fn get_context(mut state: State) -> Result<State> {
     println!("  ✓ Handler: get_context");
 
@@ -64,8 +62,7 @@ pub async fn get_context(mut state: State) -> Result<State> {
 }
 
 /// Handler 3: Generate answer using LLM
-/// This handler uses the configured Mistral LLM
-#[register_handler]
+/// This handler would use the configured Mistral LLM in a real app
 pub async fn generate_answer(mut state: State) -> Result<State> {
     println!("  ✓ Handler: generate_answer");
 
@@ -87,8 +84,8 @@ pub async fn generate_answer(mut state: State) -> Result<State> {
 
     println!("    Sending to Mistral LLM...");
 
-    // The LLM would be called here in a real implementation
-    // For now, we'll simulate the response
+    // In a real application, this would call the LLM service
+    // For this demo, we create a simulated response
     let answer = format!(
         "Based on the provided context and question: '{}', \
          this is a comprehensive answer that addresses the key aspects of the topic.",
@@ -102,7 +99,6 @@ pub async fn generate_answer(mut state: State) -> Result<State> {
 }
 
 /// Handler 4: Format the response for the user
-#[register_handler]
 pub async fn format_response(mut state: State) -> Result<State> {
     println!("  ✓ Handler: format_response");
 
