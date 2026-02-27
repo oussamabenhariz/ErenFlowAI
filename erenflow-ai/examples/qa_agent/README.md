@@ -41,14 +41,14 @@ echo "MISTRAL_API_KEY=your_key_here" > .env
 From the project root (`erenflow-ai/`):
 
 ```bash
-cargo run --example qa_agent
+# Run the qa_agent example
+cargo run -p qa-agent-example
 ```
 
-Or from the example directory:
+Or with explicit environment variable:
 
 ```bash
-cd examples/qa_agent
-cargo run
+MISTRAL_API_KEY=your_key_here cargo run -p qa-agent-example
 ```
 
 ## Expected Output
