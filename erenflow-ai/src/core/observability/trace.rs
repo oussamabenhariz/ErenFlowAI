@@ -1,6 +1,5 @@
 //! # Execution Tracing
 //!
-//! Hierarchical execution traces with span support for observability.
 
 use super::types::{NodeTiming, PathSegment, TokenUsage};
 use chrono::Utc;

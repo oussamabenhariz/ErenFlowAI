@@ -123,6 +123,47 @@ impl NodeConfig {
         self.config = config;
         self
     }
+
+    /// Validate the node configuration
+    ///
+    /// Checks:
+    /// - Timeout is in a reasonable range (if specified)
+    /// - Timeout is not exactly 0 (would timeout immediately)
+    ///
+    /// # Returns
+    /// Error if validation fails
+    pub fn validate(&self) -> crate::core::error::Result<()> {
+        if let Some(timeout_ms) = self.timeout_ms {
+            // Timeout of 0 doesn't make sense
+            if timeout_ms == 0 {
+                return Err(crate::core::error::ErenFlowError::ConfigError(
+                    format!(
+                        "Node '{}': timeout_ms cannot be 0 (would timeout immediately). Set it to a positive milliseconds value.",
+                        self.name
+                    ),
+                ));
+            }
+
+            // Warn if timeout is extremely large (more than 1 hour = 3,600,000ms)
+            const MAX_REASONABLE_TIMEOUT_MS: u64 = 3_600_000; // 1 hour
+            if timeout_ms > MAX_REASONABLE_TIMEOUT_MS {
+                eprintln!(
+                    "⚠️  Warning: Node '{}' has timeout_ms = {} (more than 1 hour). Is this intentional?",
+                    self.name, timeout_ms
+                );
+            }
+
+            // Warn if timeout is very small (less than 100ms)
+            const MIN_REASONABLE_TIMEOUT_MS: u64 = 100;
+            if timeout_ms < MIN_REASONABLE_TIMEOUT_MS {
+                eprintln!(
+                    "⚠️  Warning: Node '{}' has timeout_ms = {} (less than 100ms). This might be too short for I/O operations.",
+                    self.name, timeout_ms
+                );
+            }
+        }
+        Ok(())
+    }
 }
 
 // =============================================================================
@@ -317,6 +358,7 @@ pub type EdgeCondition =
 // =============================================================================
 
 /// A compiled edge (connection) between two nodes, with optional condition.
+#[derive(Clone)]
 pub struct Edge {
     /// Source node name
     pub from: String,
@@ -332,6 +374,18 @@ pub struct Edge {
 
     /// Type-safe routing condition (new DSL-based conditions)
     pub routing_condition: Option<Condition>,
+}
+
+impl std::fmt::Debug for Edge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Edge")
+            .field("from", &self.from)
+            .field("to", &self.to)
+            .field("condition", &self.condition.is_some())
+            .field("condition_name", &self.condition_name)
+            .field("routing_condition", &self.routing_condition)
+            .finish()
+    }
 }
 
 impl Edge {

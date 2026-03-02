@@ -2,8 +2,6 @@
 //!
 //! Generates clear, professional SVG visualizations of agent workflows with crisp, scalable text.
 
-#![cfg(feature = "visualization")]
-
 use crate::core::error::Result;
 use crate::core::graph::Graph;
 use std::collections::HashMap;

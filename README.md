@@ -321,25 +321,24 @@ llm:
 
 ### Using LLMs in Handlers
 
-Mark handlers that use LLMs in config:
-
-```yaml
-- name: generate_response
-  handler: handlers::generate_response
-  uses_llm: true  # ← This handler will use the configured LLM
-```
-
-In your handler:
+To use the LLM in a handler, access it through the state:
 
 ```rust
 pub async fn generate_response(mut state: State) -> Result<State> {
-    // LLM access is available through client in context
-    let message = state.get("input").and_then(|v| v.as_str()).unwrap_or("");
+    let input = state.get("input").and_then(|v| v.as_str()).unwrap_or("");
     
-    // Call LLM and update state
-    let response = llm_client.generate_response(message).await?;
-    state.set("response", json!(response));
+    // Get the LLM client from state
+    let llm = state.get_llm_client()?;
     
+    // Create messages and call LLM
+    let response = llm.chat(vec![
+        Message {
+            role: "user".to_string(),
+            content: input.to_string(),
+        }
+    ]).await?;
+    
+    state.set("response", json!(response.content));
     Ok(state)
 }
 ```

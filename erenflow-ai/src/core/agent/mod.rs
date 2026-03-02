@@ -41,7 +41,7 @@
 //! Handler names must match the function name and be referenced by that name in your config.yaml.
 
 use crate::core::config::AgentConfig;
-use crate::core::error::Result;
+use crate::core::error::{ErenFlowError, Result};
 use crate::core::llm::{create_llm_client, LLMClient};
 use crate::core::memory::{
     Checkpointer, ConversationMemory, InMemoryConversationMemory, MemoryCheckpointer,
@@ -155,6 +155,9 @@ pub type ConditionRegistry = HashMap<String, Condition>;
 pub struct Agent {
     runtime: AgentRuntime,
     llm_client: Arc<dyn LLMClient>,
+    config: AgentConfig,
+    /// Current state of the agent (initialized from state_schema)
+    pub state: State,
     /// Optional conversation memory (message history per thread). Set via config or with_conversation_memory().
     conversation_memory: Option<Arc<dyn ConversationMemory>>,
 }
@@ -201,9 +204,65 @@ impl Agent {
         // Create LLM client
         let llm_client = create_llm_client(&config.llm)?;
 
+        // Validate that all handlers required by config exist
+        let available_handlers: std::collections::HashSet<&String> = handlers.keys().collect();
+        let mut missing_handlers = Vec::new();
+        
+        for node in &config.graph.nodes {
+            // Skip builtin handlers
+            if node.handler.starts_with("builtin::") {
+                continue;
+            }
+            
+            if !available_handlers.contains(&node.handler) {
+                missing_handlers.push(node.handler.clone());
+            }
+        }
+        
+        if !missing_handlers.is_empty() {
+            let available_list = if handlers.is_empty() {
+                "(none registered)".to_string()
+            } else {
+                handlers.keys()
+                    .map(|k| format!("'{}'", k))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            
+            return Err(ErenFlowError::ConfigError(
+                format!(
+                    "Configuration references unknown handler(s): {}.\nAvailable handlers: {}\nMake sure to #[register_handler] these functions in your code.",
+                    missing_handlers.iter()
+                        .map(|h| format!("'{}'", h))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    available_list
+                )
+            ));
+        }
+
         // Register all handlers
+        let available_handler_names: Vec<String> = handlers.keys().map(|k| k.to_string()).collect();
+        
         for (name, handler) in handlers {
-            runtime.register_node(&name, handler)?;
+            runtime.register_node(&name, handler)
+                .map_err(|e| {
+                    if matches!(e, ErenFlowError::NodeNotFound(_)) {
+                        ErenFlowError::NodeNotFound(
+                            format!(
+                                "'{}' handler not found.\nAvailable handlers: {}.\nDid you forget #[register_handler] on this function?",
+                                name,
+                                if available_handler_names.is_empty() {
+                                    "(none registered)".to_string()
+                                } else {
+                                    available_handler_names.join(", ")
+                                }
+                            )
+                        )
+                    } else {
+                        e
+                    }
+                })?;
         }
 
         // Register all conditions
@@ -240,6 +299,8 @@ impl Agent {
         Ok(Agent {
             runtime,
             llm_client,
+            config: config.clone(),
+            state: config.create_initial_state(),
             conversation_memory: None,
         })
     }
@@ -273,43 +334,51 @@ impl Agent {
         self.conversation_memory.clone()
     }
 
-    /// Execute the agent with initial state
+    /// Execute the agent with its current state
     ///
     /// Runs the agent through all nodes following the edges until completion.
+    /// Uses the agent's built-in state (initialized from state_schema).
+    /// Automatically injects the LLM configuration into state so handlers can access it.
     ///
-    /// # Example
+    /// Set state values before calling:
     /// ```no_run
     /// use erenflow_ai::prelude::*;
     /// use serde_json::json;
-    /// use std::collections::HashMap;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<()> {
-    ///     let mut agent = Agent::from_config("config.yaml", HashMap::new(), HashMap::new())?;
+    ///     let mut agent = from_config_path("config.yaml")?;
     ///     
-    ///     let mut state = State::new();
-    ///     state.set("input", json!("Say hello"));
+    ///     // Set initial values on agent.state
+    ///     agent.state.set("input", json!("Say hello"));
     ///     
-    ///     let result = agent.run(state).await?;
-    ///     println!("Done! Result: {}", result.to_json_string()?);
+    ///     let result_state = agent.run().await?;
+    ///     println!("Done! Result: {}", result_state.to_json_string()?);
     ///     
     ///     Ok(())
     /// }
     /// ```
-    pub async fn run(&mut self, initial_state: State) -> Result<State> {
-        self.runtime.execute(initial_state).await
+    pub async fn run(&mut self) -> Result<State> {
+        // Automatically inject LLM config into state for handler access
+        let llm_config_json = serde_json::to_value(&self.config.llm)
+            .unwrap_or_else(|_| serde_json::json!({}));
+        self.state.set("_llm_config", llm_config_json);
+        
+        self.runtime.execute(self.state.clone()).await
     }
 
     /// Run with a thread id for checkpointing and conversation memory. When a checkpointer is set,
     /// state is loaded from the last checkpoint for this thread (if any) and saved after each node.
     /// Use the same thread_id with conversation_memory to get/add messages for this conversation.
-    pub async fn run_with_thread(
-        &mut self,
-        thread_id: &str,
-        initial_state: State,
-    ) -> Result<State> {
+    /// Automatically injects the LLM configuration into state so handlers can access it.
+    pub async fn run_with_thread(&mut self, thread_id: &str) -> Result<State> {
+        // Automatically inject LLM config into state for handler access
+        let llm_config_json = serde_json::to_value(&self.config.llm)
+            .unwrap_or_else(|_| serde_json::json!({}));
+        self.state.set("_llm_config", llm_config_json);
+        
         self.runtime
-            .execute_with_thread(thread_id, initial_state)
+            .execute_with_thread(thread_id, self.state.clone())
             .await
     }
 
@@ -341,7 +410,6 @@ impl Agent {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg(feature = "visualization")]
     pub fn visualize_graph(&self, output_path: &str) -> Result<()> {
         self.runtime.visualize_graph(output_path)
     }

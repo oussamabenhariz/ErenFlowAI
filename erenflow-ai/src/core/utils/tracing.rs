@@ -1,6 +1,5 @@
 //! # Tracing & Observability Module
 //!
-//! Provides structured logging, execution tracing, and observability infrastructure
 //! for the ErenFlowAI runtime. Enables detailed insights into agent execution flow,
 //! performance metrics, and debugging information.
 //!

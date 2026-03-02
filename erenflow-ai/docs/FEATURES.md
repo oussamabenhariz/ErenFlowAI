@@ -1,3 +1,4 @@
+````markdown
 # ErenFlowAI Features Guide
 
 A practical guide to all the amazing features that make ErenFlowAI powerful.
@@ -498,5 +499,4 @@ state.validate()?;  // Checks against schema
 3. **Get smart:** Enable auto-evaluation for quality
 4. **Go dynamic:** Use planner for complex workflows
 5. **Connect:** Add tools and MCPs
-
-See the other guides for implementation details!
+````

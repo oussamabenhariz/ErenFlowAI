@@ -33,8 +33,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub mod builtin;
+pub mod web;
 
 pub use builtin::{CalculatorTool, FilesTool, SearchTool, WebRequestTool};
+pub use web::{FetchTool, SearchTool as WebSearchTool};
 
 // =============================================================================
 // Tool Trait
@@ -435,6 +437,23 @@ impl ToolRegistry {
         ToolRegistry {
             tools: HashMap::new(),
         }
+    }
+
+    /// Create a tool registry with all built-in tools pre-registered
+    pub fn with_builtins() -> Self {
+        let mut registry = Self::new();
+        
+        // Register built-in tools
+        let _ = registry.register("calculator", Arc::new(builtin::CalculatorTool::new()));
+        let _ = registry.register("search", Arc::new(builtin::SearchTool::new()));
+        let _ = registry.register("web_request", Arc::new(builtin::WebRequestTool::new()));
+        let _ = registry.register("file", Arc::new(builtin::FilesTool::new()));
+        
+        // Register web tools
+        let _ = registry.register("http_get", Arc::new(web::FetchTool));
+        let _ = registry.register("web_search", Arc::new(web::SearchTool));
+        
+        registry
     }
 
     /// Register a tool

@@ -1,3 +1,4 @@
+````markdown
 # Config Guide: Setting Up Memory, Evaluation & More
 
 A practical guide to configuring all ErenFlowAI features.
@@ -379,7 +380,6 @@ graph:
       handler: handlers::analyze
     - name: respond
       handler: handlers::generate_response
-      uses_llm: true
 
   # Edges
   edges:
@@ -493,3 +493,5 @@ graph:
 - [See full examples](examples/)
 - [Learn about predefined agents](FEATURES.md)
 - [Advanced patterns](DEVELOPER_GUIDE.md)
+
+````

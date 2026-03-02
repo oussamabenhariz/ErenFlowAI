@@ -260,7 +260,7 @@ impl StateSchema {
                         });
                     }
                     Some(value) => {
-                        if let Err(msg) = validator.validate(value) {
+                        if let Err(msg) = validator.validate(&value) {
                             errors.push(ValidationError {
                                 field: name.clone(),
                                 message: msg,
@@ -271,7 +271,7 @@ impl StateSchema {
             } else {
                 // Optional fields: validate if present
                 if let Some(value) = state.get(name) {
-                    if let Err(msg) = validator.validate(value) {
+                    if let Err(msg) = validator.validate(&value) {
                         errors.push(ValidationError {
                             field: name.clone(),
                             message: msg,

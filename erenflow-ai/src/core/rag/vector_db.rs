@@ -343,12 +343,10 @@ impl VectorStoreBackend for InMemoryVectorStore {
 // Pinecone Implementation (when feature enabled)
 // ============================================================================
 
-#[cfg(feature = "rag")]
 pub struct PineconeStore {
     config: RAGConfig,
 }
 
-#[cfg(feature = "rag")]
 impl PineconeStore {
     pub async fn new(config: RAGConfig) -> Result<Self, VectorStoreError> {
         if config.store_type != VectorStoreType::Pinecone {
@@ -364,10 +362,9 @@ impl PineconeStore {
     }
 }
 
-#[cfg(feature = "rag")]
 #[async_trait]
 impl VectorStoreBackend for PineconeStore {
-    async fn index(&self, doc: Document) -> Result<(), VectorStoreError> {
+    async fn index(&self, _doc: Document) -> Result<(), VectorStoreError> {
         // Implement Pinecone indexing
         Ok(())
     }

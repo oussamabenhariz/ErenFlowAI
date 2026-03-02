@@ -79,6 +79,7 @@ pub mod anthropic;
 pub mod azure;
 pub mod factory;
 pub mod groq;
+pub mod huggingface;
 pub mod mistral;
 pub mod ollama;
 pub mod openai;
@@ -87,6 +88,7 @@ pub use anthropic::AnthropicClient;
 pub use azure::AzureOpenAIClient;
 pub use factory::create_llm_client;
 pub use groq::GroqClient;
+pub use huggingface::HuggingFaceClient;
 pub use mistral::MistralClient;
 pub use ollama::OllamaClient;
 pub use openai::OpenAIClient;
@@ -114,6 +116,21 @@ pub use openai::OpenAIClient;
 ///   provider: anthropic
 ///   model: claude-3-opus-20240229
 ///   api_key: ${ANTHROPIC_API_KEY}
+///
+/// # HuggingFace Inference API
+/// llm:
+///   provider: huggingface
+///   model: mistralai/Mistral-7B-Instruct-v0.1
+///   api_key: ${HF_API_TOKEN}
+///
+/// # HuggingFace Local TGI Server
+/// llm:
+///   provider: huggingface
+///   model: mistralai/Mistral-7B-Instruct-v0.1
+///   api_key: ""
+///   extra_params:
+///     mode: tgi
+///     endpoint: "http://localhost:8080"
 ///
 /// # Local Ollama
 /// llm:
@@ -145,6 +162,9 @@ pub enum LLMProvider {
     /// Groq Cloud
     Groq,
 
+    /// HuggingFace (cloud API or local TGI server)
+    HuggingFace,
+
     /// Local LLM via Ollama (http://localhost:11434)
     Ollama,
 
@@ -163,6 +183,7 @@ impl LLMProvider {
             LLMProvider::Anthropic => "https://api.anthropic.com/v1".to_string(),
             LLMProvider::Mistral => "https://api.mistral.ai/v1".to_string(),
             LLMProvider::Groq => "https://api.groq.com/v1".to_string(),
+            LLMProvider::HuggingFace => "https://api-inference.huggingface.co".to_string(),
             LLMProvider::Ollama => "http://localhost:11434/api".to_string(),
             LLMProvider::Azure => "".to_string(), // Will be constructed per-request
             LLMProvider::Custom(url) => url.clone(),
@@ -176,6 +197,7 @@ impl LLMProvider {
             LLMProvider::Anthropic => "anthropic",
             LLMProvider::Mistral => "mistral",
             LLMProvider::Groq => "groq",
+            LLMProvider::HuggingFace => "huggingface",
             LLMProvider::Ollama => "ollama",
             LLMProvider::Azure => "azure",
             LLMProvider::Custom(_) => "custom",
@@ -421,7 +443,6 @@ pub trait LLMClient: Send + Sync {
     /// The LLM's response as a new message
     async fn chat(&self, messages: Vec<Message>) -> crate::core::error::Result<Message>;
 
-    /// Send messages and get response with token usage (for observability).
     /// Default implementation calls chat() and returns None for usage.
     async fn chat_with_usage(
         &self,

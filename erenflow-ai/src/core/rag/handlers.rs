@@ -45,7 +45,7 @@ impl RAGHandlers {
            + Sync
            + Clone
            + 'static {
-        move |mut state: State| {
+        move |state: State| {
             let store = Arc::clone(&vector_store);
             let emb = Arc::clone(&embeddings);
 
@@ -53,15 +53,13 @@ impl RAGHandlers {
                 // Get document from state
                 let doc_id = state
                     .get("doc_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "unknown".to_string());
 
                 let doc_text = state
                     .get("doc_text")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .unwrap_or_default();
 
                 if doc_text.is_empty() {
                     state.set("error", json!("Document text is empty"));
@@ -103,7 +101,7 @@ impl RAGHandlers {
            + Sync
            + Clone
            + 'static {
-        move |mut state: State| {
+        move |state: State| {
             let store = Arc::clone(&vector_store);
             let emb = Arc::clone(&embeddings);
             let cfg = config.clone();
@@ -112,9 +110,8 @@ impl RAGHandlers {
                 // Get query from state
                 let query = state
                     .get(&cfg.query_key)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .unwrap_or_default();
 
                 if query.is_empty() {
                     state.set("error", json!("Query is empty"));
@@ -181,22 +178,20 @@ impl RAGHandlers {
            + Sync
            + Clone
            + 'static {
-        move |mut state: State| {
+        move |state: State| {
             let ctx_key = context_key.clone();
             let pmpt_key = prompt_key.clone();
 
             Box::pin(async move {
                 let query = state
                     .get(&pmpt_key)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .unwrap_or_default();
 
                 let context = state
                     .get(&ctx_key)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+                    .and_then(|v| v.as_str().map(|s| s.to_string()))
+                    .unwrap_or_default();
 
                 // Augment prompt with context
                 let augmented = if !context.is_empty() {

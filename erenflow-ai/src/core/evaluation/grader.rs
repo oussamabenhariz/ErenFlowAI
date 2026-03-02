@@ -61,18 +61,6 @@ impl GradeResult {
         self.suggestions.push(suggestion);
         self
     }
-
-    /// Parse score from rating
-    #[allow(dead_code)]
-    fn score_from_rating(rating: &str) -> f64 {
-        match rating.to_lowercase().as_str() {
-            "excellent" => 1.0,
-            "good" => 0.8,
-            "fair" => 0.6,
-            "poor" => 0.2,
-            _ => 0.5,
-        }
-    }
 }
 
 /// Grades node outputs using LLM

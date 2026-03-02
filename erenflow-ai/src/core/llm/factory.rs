@@ -26,6 +26,9 @@ pub fn create_llm_client(config: &LLMConfig) -> Result<Arc<dyn LLMClient>> {
         ))),
         LLMProvider::Mistral => Ok(Arc::new(super::mistral::MistralClient::new(config.clone()))),
         LLMProvider::Groq => Ok(Arc::new(super::groq::GroqClient::new(config.clone()))),
+        LLMProvider::HuggingFace => Ok(Arc::new(super::huggingface::HuggingFaceClient::new(
+            config.clone(),
+        ))),
         LLMProvider::Ollama => Ok(Arc::new(super::ollama::OllamaClient::new(config.clone()))),
         LLMProvider::Azure => Ok(Arc::new(super::azure::AzureOpenAIClient::new(
             config.clone(),
@@ -74,6 +77,16 @@ mod tests {
             LLMProvider::Ollama,
             "mistral".to_string(),
             "".to_string(), // Ollama usually doesn't need an API key
+        );
+        assert!(create_llm_client(&config).is_ok());
+    }
+
+    #[test]
+    fn test_create_huggingface_client() {
+        let config = LLMConfig::new(
+            LLMProvider::HuggingFace,
+            "mistralai/Mistral-7B-Instruct-v0.1".to_string(),
+            "hf_test_token".to_string(),
         );
         assert!(create_llm_client(&config).is_ok());
     }

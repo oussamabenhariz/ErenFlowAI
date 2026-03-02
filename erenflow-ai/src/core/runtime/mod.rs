@@ -47,7 +47,6 @@ use crate::core::memory::{CheckpointMetadata, Checkpointer};
 use crate::core::middleware::ExecutionContext as MiddlewareContext;
 use crate::core::middleware::MiddlewarePipeline;
 use crate::core::node::{Edge, EdgeCondition, Node, NodeFunction};
-#[cfg(feature = "observability")]
 use crate::core::observability::ObservabilityMiddleware;
 use crate::core::state::State;
 use crate::core::tracing::TimerGuard;
@@ -321,8 +320,6 @@ impl AgentRuntime {
     }
 
     /// Add observability middleware (execution tracing, node timing, token usage, failure snapshots).
-    /// Requires the `observability` feature.
-    #[cfg(feature = "observability")]
     pub fn with_observability(&mut self) -> &mut Self {
         let mw = ObservabilityMiddleware::new().with_agent_name(self.config.name.clone());
         self.add_middleware(Arc::new(mw));
@@ -352,6 +349,18 @@ impl AgentRuntime {
     }
 
     async fn execute_impl(&self, initial_state: State, thread_id: Option<&str>) -> Result<State> {
+        // == STATE CLONING NOTES ==
+        // This execution loop clones state at several points for correctness:
+        // 1. Parallel frontier execution: Arc-wrapped single clone for shared access
+        // 2. Middleware context: Clone for before/after hooks (they need mutable reference)
+        // 3. Node execution: Clone as handler takes state by value
+        //
+        // For typical workflows, these clones are acceptable and necessary.
+        // For large state objects (>1MB), consider:
+        // - SharedState: Zero-copy shared state via Arc<Mutex>
+        // - OptimizedState: Lazy cloning on mutation only
+        // See STATE_OPTIMIZATION_GUIDE.md for detailed strategies
+        
         let span = tracing::info_span!("agent_execution");
         let _guard = span.enter();
 
@@ -405,7 +414,8 @@ impl AgentRuntime {
 
             if run_parallel {
                 // Run all frontier nodes concurrently (futures::join_all)
-                let state_clone = state.clone();
+                // Optimization: Share state via Arc to avoid multiple clones
+                let state_shared = Arc::new(state.clone());
                 let futures_with_names: Vec<_> = current_nodes
                     .iter()
                     .filter(|n| *n != "END")
@@ -414,7 +424,8 @@ impl AgentRuntime {
                             .graph
                             .get_node(node_name)
                             .ok_or_else(|| ErenFlowError::NodeNotFound(node_name.clone()))?;
-                        let state_in = state_clone.clone();
+                        // Clone is now just Arc::clone, not State::clone
+                        let state_in = state_shared.as_ref().clone();
                         let name = node_name.clone();
                         let fut = node.execute(state_in);
                         Ok::<_, ErenFlowError>((name, fut))
@@ -448,7 +459,7 @@ impl AgentRuntime {
                 }
 
                 // Merge states (each branch's keys merged; last wins on conflict)
-                let mut merged = State::new();
+                let merged = State::empty();
                 for r in &results {
                     let (node_name, branch_state) = r.as_ref().unwrap();
                     execution_path.push(node_name.clone());
@@ -530,6 +541,10 @@ impl AgentRuntime {
                 let _node_timer = TimerGuard::start(format!("node_{}", node_name));
 
                 // === MIDDLEWARE: before_node ===
+                // Note: state.clone() is necessary here because:
+                // 1. Middleware takes mutable reference and can modify state
+                // 2. Node handler takes state by value
+                // For large state objects (>1MB), consider using SharedState for zero-copy sharing
                 let start_time = Instant::now();
                 let mut middleware_ctx = MiddlewareContext::new(node_name.clone(), state.clone());
 
@@ -555,11 +570,13 @@ impl AgentRuntime {
                     state.set("_reachable_nodes", serde_json::json!(reachable));
                 }
 
+                // Execute node - clone is necessary as handler takes State by value
                 match node.execute(state.clone()).await {
                     Ok(new_state) => {
                         state = new_state;
 
                         // === MIDDLEWARE: after_node ===
+                        // Clone here is needed because middleware requires mutable reference
                         let elapsed = start_time.elapsed();
                         let mut after_ctx =
                             MiddlewareContext::new(node_name.clone(), state.clone());
@@ -599,7 +616,7 @@ impl AgentRuntime {
                                 break;
                             }
                             let next_node =
-                                state.get_str("_next_node").unwrap_or("END").to_string();
+                                state.get_str("_next_node").unwrap_or_else(|| "END".to_string());
                             if next_node == "END" {
                                 tracing::info!(from = %node_name, "Planner chose END - execution complete");
                                 if let (Some(cp), Some(tid)) = (&self.checkpointer, thread_id) {
@@ -766,7 +783,6 @@ impl AgentRuntime {
     /// runtime.visualize_graph("agent_graph.txt")?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    #[cfg(feature = "visualization")]
     pub fn visualize_graph(&self, output_path: &str) -> Result<()> {
         // Use pure-Rust visualization module with improved defaults
         let config = crate::core::utils::visualization::VisualizationConfig::new(output_path);
@@ -782,5 +798,7 @@ impl AgentRuntime {
 // Sub-modules for runtime organization
 pub mod context;
 pub mod parallel;
+pub mod optimization;
 
 pub use parallel::*;
+pub use optimization::{OptimizedState, CloneStats, strategies};

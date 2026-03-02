@@ -1,6 +1,5 @@
 //! # Observability Module
 //!
-//! Production-grade observability for agent execution:
 //!
 //! - **Execution tracing** - Hierarchical spans, trace IDs
 //! - **Node timing metrics** - Per-node latency
@@ -13,7 +12,6 @@
 //! ## Quick Start
 //!
 //! ```ignore
-//! use erenflow_ai::core::observability::{ObservabilityMiddleware, record_token_usage};
 //! use std::sync::Arc;
 //!
 //! let mut runtime = AgentRuntime::from_config(config)?;
@@ -43,11 +41,13 @@ mod middleware;
 mod replay;
 mod trace;
 mod types;
+pub mod visualization;
 
 pub use middleware::{ObservabilityMiddleware, TOKEN_USAGE_STATE_KEY};
 pub use replay::ReplayMode;
 pub use trace::ExecutionTrace;
 pub use types::{FailureSnapshot, NodeTiming, PathSegment};
+pub use visualization::{ExecutionTracer, GraphVisualizer, LayoutAlgorithm};
 
 use crate::core::llm::TokenUsage;
 use crate::core::state::State;
@@ -65,8 +65,3 @@ pub fn record_token_usage(state: &mut State, usage: &TokenUsage) {
         }),
     );
 }
-
-#[cfg(feature = "observability-ui")]
-mod ui;
-#[cfg(feature = "observability-ui")]
-pub use ui::TracingUIServer;

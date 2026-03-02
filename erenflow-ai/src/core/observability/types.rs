@@ -8,10 +8,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Re-export LLM token usage for observability
 pub type TokenUsage = LlmTokenUsage;
 
 /// Single span in an execution trace
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraceSpan {
     pub span_id: String,
@@ -25,6 +25,7 @@ pub struct TraceSpan {
     pub metadata: HashMap<String, serde_json::Value>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SpanType {
     Execution,
@@ -33,6 +34,7 @@ pub enum SpanType {
     LlmCall,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SpanStatus {
     Ok,

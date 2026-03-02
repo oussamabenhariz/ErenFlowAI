@@ -28,6 +28,107 @@
 use crate::core::state::State;
 use serde_json::Value;
 
+/// Unified routing condition that supports both DSL and function-based conditions.
+///
+/// This is the recommended way to define routing conditions. It provides:
+/// - Type-safe Condition DSL for declarative routing logic
+/// - Function-based conditions for custom imperative logic
+/// - Seamless integration with Edge and EdgeConfig
+///
+/// # Example: Using DSL
+///
+/// ```ignore
+/// use erenflow_ai::core::routing::{RoutingCondition, Condition, ComparisonOp};
+///
+/// let condition = RoutingCondition::dsl(
+///     Condition::compare("score", ComparisonOp::GreaterThan, 0.7)
+/// );
+/// ```
+///
+/// # Example: Using Function
+///
+/// ```ignore
+/// use erenflow_ai::core::routing::RoutingCondition;
+///
+/// let condition = RoutingCondition::function(|state| {
+///     Ok(Some("target_node".to_string()))
+/// });
+/// ```
+#[derive(Clone)]
+pub enum RoutingCondition {
+    /// Type-safe DSL condition (recommended)
+    DSL(Condition),
+
+    /// Function-based condition (for custom logic)
+    ///
+    /// Returns `Some(node_name)` to jump to a specific node,
+    /// or `None` to use the default target.
+    Function(
+        std::sync::Arc<dyn Fn(&State) -> crate::core::error::Result<Option<String>> + Send + Sync>,
+    ),
+}
+
+impl RoutingCondition {
+    /// Create a DSL-based condition (preferred method)
+    pub fn dsl(condition: Condition) -> Self {
+        RoutingCondition::DSL(condition)
+    }
+
+    /// Create a function-based condition
+    pub fn function<F>(f: F) -> Self
+    where
+        F: Fn(&State) -> crate::core::error::Result<Option<String>> + Send + Sync + 'static,
+    {
+        RoutingCondition::Function(std::sync::Arc::new(f))
+    }
+
+    /// Evaluate the condition against a state
+    ///
+    /// Returns `Some(node)` if the condition specifies a target node,
+    /// or `None` if using the default target.
+    pub fn evaluate(&self, state: &State) -> crate::core::error::Result<Option<String>> {
+        match self {
+            RoutingCondition::DSL(condition) => {
+                // DSL-based conditions return boolean; if true, use None (default target)
+                Ok(if condition.evaluate(state) { None } else { None })
+            }
+            RoutingCondition::Function(f) => f(state),
+        }
+    }
+
+    /// Check if the condition allows this edge to be traversed
+    ///
+    /// For DSL conditions: returns true if condition evaluates to true
+    /// For function conditions: returns true if function returns Some(_) or None
+    pub fn allows_traversal(&self, state: &State) -> crate::core::error::Result<bool> {
+        match self {
+            RoutingCondition::DSL(condition) => Ok(condition.evaluate(state)),
+            RoutingCondition::Function(f) => {
+                // Function-based conditions allow traversal if they don't error
+                f(state).map(|_| true)
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for RoutingCondition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RoutingCondition::DSL(cond) => write!(f, "DSL({})", cond),
+            RoutingCondition::Function(_) => write!(f, "Function(...)"),
+        }
+    }
+}
+
+impl std::fmt::Display for RoutingCondition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RoutingCondition::DSL(cond) => write!(f, "{}", cond),
+            RoutingCondition::Function(_) => write!(f, "custom_function"),
+        }
+    }
+}
+
 /// Comparison operators for field comparisons
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComparisonOp {
@@ -200,7 +301,7 @@ impl Condition {
     pub fn evaluate(&self, state: &State) -> bool {
         match self {
             Condition::Compare { field, op, value } => match state.get(field) {
-                Some(field_value) => op.apply(field_value, value),
+                Some(field_value) => op.apply(&field_value, value),
                 None => false,
             },
 
@@ -210,7 +311,7 @@ impl Condition {
                 field,
                 expected_type,
             } => match state.get(field) {
-                Some(value) => expected_type.matches(value),
+                Some(value) => expected_type.matches(&value),
                 None => false,
             },
 

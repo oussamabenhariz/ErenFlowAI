@@ -1,3 +1,4 @@
+````markdown
 # ErenFlowAI Quick Start - Get Running in 5 Minutes
 
 Let's build a working agent **right now**. No theory, just results.
@@ -274,11 +275,9 @@ graph:
     
     - name: analyze
       handler: handlers::analyze
-      uses_llm: true
     
     - name: respond
       handler: handlers::generate_response
-      uses_llm: true
 
   edges:
     - from: START
@@ -500,12 +499,4 @@ observability:
 
 ---
 
-## Full Documentation
-
-- [README.md](README.md) - Overview and features
-- [CONFIG_GUIDE.md](CONFIG_GUIDE.md) - Complete configuration reference
-- [API Docs](https://docs.rs/erenflow-ai) - API documentation
-
----
-
-**You're ready! Start building! 🚀**
+````

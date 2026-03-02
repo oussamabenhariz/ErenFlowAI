@@ -93,10 +93,18 @@ use crate::core::mcp::MCPConfig;
 use crate::core::memory::MemoryConfig;
 use crate::core::node::{EdgeConfig, NodeConfig};
 use crate::core::state::state_validation::StateSchema;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+
+/// Cached regex for environment variable substitution (${ VAR_NAME })
+/// Compiled once at first use, reused for all subsequent config loads
+static ENV_VAR_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\$\{([^}]+)\}")
+        .expect("Environment variable substitution regex is valid")
+});
 
 // =============================================================================
 // State Schema Structures
@@ -104,11 +112,13 @@ use std::path::Path;
 
 /// Represents a single field in the state schema
 ///
+/// Represents a field in the agent's state schema.
+///
 /// Can be deserialized from either:
 /// - Structured format: `{ type: "string", description: "..." }`
 /// - Legacy format: `"string - description"`
 #[derive(Debug, Clone, Serialize)]
-pub struct StateSchemaField {
+pub struct StateField {
     /// The type of the field (e.g., "string", "object", "Array<T>")
     pub field_type: String,
 
@@ -117,8 +127,8 @@ pub struct StateSchemaField {
     pub description: String,
 }
 
-impl StateSchemaField {
-    /// Create a new state schema field
+impl StateField {
+    /// Create a new state field
     pub fn new(field_type: impl Into<String>, description: impl Into<String>) -> Self {
         Self {
             field_type: field_type.into(),
@@ -151,14 +161,14 @@ impl StateSchemaField {
     }
 }
 
-impl<'de> Deserialize<'de> for StateSchemaField {
+impl<'de> Deserialize<'de> for StateField {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
         #[serde(untagged)]
-        enum StateSchemaFieldRaw {
+        enum StateFieldRaw {
             Structured {
                 #[serde(rename = "type")]
                 field_type: String,
@@ -168,18 +178,24 @@ impl<'de> Deserialize<'de> for StateSchemaField {
             Legacy(String),
         }
 
-        match StateSchemaFieldRaw::deserialize(deserializer)? {
-            StateSchemaFieldRaw::Structured {
+        match StateFieldRaw::deserialize(deserializer)? {
+            StateFieldRaw::Structured {
                 field_type,
                 description,
-            } => Ok(StateSchemaField {
+            } => Ok(StateField {
                 field_type,
                 description,
             }),
-            StateSchemaFieldRaw::Legacy(s) => Ok(StateSchemaField::from_legacy(&s)),
+            StateFieldRaw::Legacy(s) => Ok(StateField::from_legacy(&s)),
         }
     }
 }
+
+/// Backwards-compatibility type alias
+///
+/// Use [`StateField`] instead. This is maintained for legacy code.
+#[deprecated(since = "0.2.0", note = "Use `StateField` instead")]
+pub type StateSchemaField = StateField;
 
 // =============================================================================
 // Environment Variable Substitution
@@ -190,12 +206,15 @@ impl<'de> Deserialize<'de> for StateSchemaField {
 /// This allows keeping sensitive information like API keys out of the codebase.
 /// If a variable is not found, it logs a warning and uses the literal value.
 ///
+/// # Performance
+/// Uses a cached regex pattern compiled once at first use.
+/// Subsequent calls reuse the compiled pattern.
+///
 /// # Example
 /// In your config: `api_key: ${OPENAI_API_KEY}`
 /// Gets replaced with the actual `OPENAI_API_KEY` environment variable.
 fn substitute_env_vars(input: &str) -> String {
-    let re = Regex::new(r"\$\{([^}]+)\}").unwrap();
-    re.replace_all(input, |caps: &regex::Captures| {
+    ENV_VAR_PATTERN.replace_all(input, |caps: &regex::Captures| {
         let var_name = &caps[1];
         std::env::var(var_name).unwrap_or_else(|_| {
             eprintln!(
@@ -234,8 +253,8 @@ pub struct AgentConfig {
     /// Graph structure definition
     pub graph: GraphConfig,
 
-    /// Optional schema describing the state shape
-    /// (Useful for documentation and validation)
+    /// Schema describing the state shape
+    /// (Required for proper state initialization and validation)
     ///
     /// Fields can be defined in structured format:
     /// ```yaml
@@ -250,8 +269,7 @@ pub struct AgentConfig {
     /// state_schema:
     ///   field_name: "string - Field description"
     /// ```
-    #[serde(default)]
-    pub state_schema: HashMap<String, StateSchemaField>,
+    pub state_schema: HashMap<String, StateField>,
 
     /// Optional state validation schema for runtime validation
     /// Can be set programmatically via with_validation_schema()
@@ -339,6 +357,11 @@ impl AgentConfig {
 
     /// Validate the configuration
     pub fn validate(&self) -> crate::core::error::Result<()> {
+        // Validate individual node configurations
+        for node in &self.graph.nodes {
+            node.validate()?;
+        }
+
         // Check all edges reference existing nodes
         let node_names: std::collections::HashSet<_> =
             self.graph.nodes.iter().map(|n| &n.name).collect();
@@ -396,6 +419,27 @@ impl AgentConfig {
         self.validation_schema.as_ref().map(|arc| arc.as_ref())
     }
 
+    /// Create an initial state from the configured state_schema
+    ///
+    /// Initializes all fields defined in state_schema with null values.
+    /// Users can then set actual values via `state.set()`.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let config = AgentConfig::from_file("agent.yaml")?;
+    /// let state = config.create_initial_state();
+    /// ```
+    pub fn create_initial_state(&self) -> crate::core::state::State {
+        let state = crate::core::state::State::empty();
+        
+        // Initialize all schema fields with null
+        for key in self.state_schema.keys() {
+            state.set(key.clone(), serde_json::Value::Null);
+        }
+        
+        state
+    }
+
     /// Validate a state against the configured schema
     ///
     /// Returns Ok(()) if validation passes, Err if configured schema
@@ -441,7 +485,7 @@ struct RawAgentConfig {
     description: Option<String>,
     llm: RawLLMConfig,
     graph: GraphConfig,
-    state_schema: Option<HashMap<String, StateSchemaField>>,
+    state_schema: Option<HashMap<String, StateField>>,
     #[serde(default)]
     memory: MemoryConfig,
 }
@@ -638,13 +682,13 @@ state_schema:
     #[test]
     fn test_state_schema_field_conversion() {
         // Test legacy parsing and conversion
-        let field = StateSchemaField::from_legacy("string - User input query");
+        let field = StateField::from_legacy("string - User input query");
         assert_eq!(field.field_type, "string");
         assert_eq!(field.description, "User input query");
         assert_eq!(field.to_legacy(), "string - User input query");
 
         // Test without description
-        let field_no_desc = StateSchemaField::from_legacy("bool");
+        let field_no_desc = StateField::from_legacy("bool");
         assert_eq!(field_no_desc.field_type, "bool");
         assert_eq!(field_no_desc.description, "");
     }

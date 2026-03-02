@@ -131,7 +131,7 @@ impl ParallelExecutor {
                     },
                     Err(e) => BranchResult {
                         branch_name,
-                        state: State::new(),
+                        state: State::empty(),
                         duration: start.elapsed(),
                         success: false,
                         error: Some(e.to_string()),
@@ -253,7 +253,7 @@ impl ParallelExecutor {
 
     /// Merge results from branches into a single state
     fn merge_results(&self, initial_state: &State, results: &[BranchResult]) -> Result<State> {
-        let mut merged = initial_state.clone();
+        let merged = initial_state.clone();
 
         match self.merge_strategy {
             MergeStrategy::Combine => {
@@ -270,14 +270,14 @@ impl ParallelExecutor {
             MergeStrategy::First => {
                 // Take first successful result
                 if let Some(first) = results.iter().find(|r| r.success) {
-                    merged.merge(first.state.clone());
+                    let _ = merged.merge(first.state.clone());
                 }
             }
 
             MergeStrategy::Last => {
                 // Take last successful result
                 if let Some(last) = results.iter().rfind(|r| r.success) {
-                    merged.merge(last.state.clone());
+                    let _ = merged.merge(last.state.clone());
                 }
             }
 
@@ -294,7 +294,7 @@ impl ParallelExecutor {
                 // Custom merge - just combine all results
                 for result in results {
                     if result.success {
-                        merged.merge(result.state.clone());
+                        let _ = merged.merge(result.state.clone());
                     }
                 }
             }
@@ -363,10 +363,10 @@ impl BranchSync {
 
     /// Merge all results into a single state
     pub fn merge_all(&self) -> State {
-        let mut merged = State::new();
+        let merged = State::empty();
 
         for result in &self.results {
-            merged.merge(result.state.clone());
+            let _ = merged.merge(result.state.clone());
         }
 
         merged

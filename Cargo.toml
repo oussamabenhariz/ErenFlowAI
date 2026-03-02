@@ -1,5 +1,5 @@
 [workspace]
-members = ["erenflow-ai", "erenflow-ai-macros"]
+members = ["erenflow-ai", "erenflow-ai-macros", "simple-example"]
 resolver = "2"
 
 [workspace.package]

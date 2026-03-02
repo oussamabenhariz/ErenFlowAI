@@ -144,3 +144,86 @@ impl From<std::io::Error> for ErenFlowError {
         ErenFlowError::IoError(e.to_string())
     }
 }
+
+// =============================================================================
+// Error Context & Helper Methods
+// =============================================================================
+
+impl ErenFlowError {
+    /// Add context to an error message
+    ///
+    /// Useful for providing debugging information without re-wrapping the error.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use erenflow_ai::core::error::ErenFlowError;
+    ///
+    /// let err = ErenFlowError::ConfigError("invalid value".to_string());
+    /// let contextualized = err.context("while loading agent config from 'config.yaml'");
+    /// ```
+    pub fn context(self, msg: &str) -> Self {
+        match self {
+            ErenFlowError::ConfigError(inner) => {
+                ErenFlowError::ConfigError(format!("{}\nContext: {}", inner, msg))
+            }
+            ErenFlowError::NodeExecutionError(inner) => {
+                ErenFlowError::NodeExecutionError(format!("{}\nContext: {}", inner, msg))
+            }
+            ErenFlowError::RuntimeError(inner) => {
+                ErenFlowError::RuntimeError(format!("{}\nContext: {}", inner, msg))
+            }
+            ErenFlowError::StateError(inner) => {
+                ErenFlowError::StateError(format!("{}\nContext: {}", inner, msg))
+            }
+            ErenFlowError::LLMError(inner) => {
+                ErenFlowError::LLMError(format!("{}\nContext: {}", inner, msg))
+            }
+            other => other,
+        }
+    }
+
+    /// Check if error is a timeout
+    pub fn is_timeout(&self) -> bool {
+        matches!(
+            self,
+            ErenFlowError::TimeoutError | ErenFlowError::ExecutionTimeout(_)
+        )
+    }
+
+    /// Check if error is a validation error
+    pub fn is_validation_error(&self) -> bool {
+        matches!(self, ErenFlowError::ValidationError(_))
+    }
+
+    /// Check if error is an LLM error
+    pub fn is_llm_error(&self) -> bool {
+        matches!(self, ErenFlowError::LLMError(_))
+    }
+
+    /// Check if error is a state-related error
+    pub fn is_state_error(&self) -> bool {
+        matches!(self, ErenFlowError::StateError(_))
+    }
+
+    /// Get a hint for common error scenarios
+    pub fn hint(&self) -> Option<&'static str> {
+        match self {
+            ErenFlowError::NodeNotFound(_) => {
+                Some("Make sure the handler name in config.yaml matches a #[register_handler] function name")
+            }
+            ErenFlowError::StateError(msg) if msg.contains("not found") => {
+                Some("Check that previous nodes set this state field, or set it in main before agent.run()")
+            }
+            ErenFlowError::LLMError(msg) if msg.contains("401") || msg.contains("Unauthorized") => {
+                Some("Check your API key is valid and set correctly (e.g., $MISTRAL_API_KEY environment variable)")
+            }
+            ErenFlowError::TimeoutError | ErenFlowError::ExecutionTimeout(_) => {
+                Some("Increase the timeout value in config.yaml for this node, or optimize handler performance")
+            }
+            ErenFlowError::ConfigError(_) => {
+                Some("Ensure config.yaml is valid YAML and all required fields are present")
+            }
+            _ => None,
+        }
+    }
+}

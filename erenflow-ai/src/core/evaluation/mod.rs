@@ -262,12 +262,12 @@ impl State {
     /// Get entire evaluation history
     pub fn get_evaluation_history(&self) -> Vec<(String, EvaluationResult)> {
         self.keys()
-            .filter(|k| k.starts_with("__evaluation__"))
-            .filter_map(|k| {
+            .filter(|k: &String| k.starts_with("__evaluation__"))
+            .filter_map(|k: String| {
                 let node_name = k.strip_prefix("__evaluation__")?.to_string();
-                let result = self
-                    .get(k)
-                    .and_then(|v| serde_json::from_value(v.clone()).ok())?;
+                let result: EvaluationResult = self
+                    .get(&k)
+                    .and_then(|v| serde_json::from_value(v).ok())?;
                 Some((node_name, result))
             })
             .collect()

@@ -3,10 +3,8 @@
 //! Built-in web UI for inspecting execution traces.
 //!
 //! ```ignore
-//! use erenflow_ai::core::observability::{ObservabilityMiddleware, TracingUIServer};
 //!
 //! // After execution, get trace from middleware and serve UI
-//! let trace = observability_mw.trace().await;
 //! TracingUIServer::serve_on_port(7777, vec![trace]).await?;
 //! ```
 

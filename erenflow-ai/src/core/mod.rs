@@ -79,20 +79,20 @@ pub mod mcp;
 pub mod memory;
 pub mod middleware;
 pub mod node;
-#[cfg(feature = "observability")]
 pub mod observability;
+pub mod plugins;
 pub mod rag;
 pub mod runtime;
 pub mod state;
 pub mod tools;
 pub mod utils;
+pub mod validation;
 
 // Re-export from submodules for backward compatibility
 pub use builder::builders;
 pub use graph::routing;
 pub use node::{advanced_nodes, builtin_nodes, nodes_trait};
 pub use runtime::{context, parallel};
-#[cfg(feature = "visualization")]
 pub use utils::visualization;
 pub use utils::{debug, tracing};
 
@@ -108,7 +108,8 @@ pub use evaluation::{
 pub use state::state_validation::{FieldType, FieldValidator, StateSchema};
 pub use state::State;
 pub use utils::debug::{DebugConfig, ExecutionDebugInfo};
-pub use utils::tracing::{init_tracing, ExecutionEvent, ExecutionTrace};
+pub use utils::tracing::{init_tracing, ExecutionEvent, ExecutionTrace as TracingExecutionTrace};
+pub use validation::{StateValidator, ValidationError};
 
 pub use advanced_nodes::{
     JoinNodeConfig, JoinType, LoopNodeConfig, MergeStrategy, ParallelNodeConfig, SubgraphNodeConfig,
@@ -135,12 +136,9 @@ pub use nodes_trait::{
     ConditionalRouterConfig, HumanInTheLoopConfig, LLMNodeConfig, NodeOutput, PluggableNode,
     RetryNodeConfig, TimeoutNodeConfig, ToolNodeConfig,
 };
-#[cfg(feature = "observability-ui")]
-pub use observability::TracingUIServer;
-#[cfg(feature = "observability")]
 pub use observability::{
-    record_token_usage, ExecutionTrace, FailureSnapshot, NodeTiming, ObservabilityMiddleware,
-    PathSegment, ReplayMode, TOKEN_USAGE_STATE_KEY,
+    record_token_usage, FailureSnapshot, NodeTiming, ObservabilityMiddleware,
+    PathSegment, ReplayMode, TOKEN_USAGE_STATE_KEY, GraphVisualizer,
 };
 pub use parallel::{BranchResult, BranchSync, ParallelExecutor};
 pub use rag::{
@@ -148,12 +146,12 @@ pub use rag::{
     RetrieverStrategy, SearchResult, VectorStore, VectorStoreError,
 };
 pub use routing::{ComparisonOp, Condition, ConditionBuilder, FieldTypeCheck};
+pub use plugins::{Plugin, PluginRegistry, PluginId, PluginContext};
 pub use runtime::AgentRuntime;
 pub use tools::{
     builtin::{CalculatorTool, FilesTool, SearchTool, WebRequestTool},
     JsonSchema, Tool, ToolCallRequest, ToolCallResult, ToolDefinition, ToolRegistry,
 };
-#[cfg(feature = "visualization")]
 pub use visualization::{
     visualize_graph, visualize_graph_with_execution, ExecutionOverlay, VisualizationConfig,
 };

@@ -419,7 +419,7 @@ impl std::fmt::Debug for ExecutionContext {
             .field("node_name", &self.node_name)
             .field(
                 "state_keys",
-                &self.state.keys().cloned().collect::<Vec<_>>(),
+                &self.state.keys().collect::<Vec<_>>(),
             )
             .field("execution_path", &self.execution_path)
             .field("depth", &self.depth)

@@ -39,14 +39,13 @@ pub fn create_planner_handler(
     llm_client: Arc<dyn LLMClient>,
     prompt_template: Option<String>,
 ) -> super::NodeFunction {
-    Box::new(move |mut state: State| {
+    Box::new(move |state: State| {
         let client = Arc::clone(&llm_client);
         let template = prompt_template.clone();
         Box::pin(async move {
             let current = state
                 .get_str("_current_node")
-                .unwrap_or("unknown")
-                .to_string();
+                .unwrap_or_else(|| "unknown".to_string());
             let reachable: Vec<String> = state
                 .get("_reachable_nodes")
                 .and_then(|v| serde_json::from_value(v.clone()).ok())

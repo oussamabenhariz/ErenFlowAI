@@ -9,7 +9,14 @@
 //! - Represents mutable data shared across all nodes
 //! - Built on JSON values for maximum flexibility
 //! - Supports typed access patterns
-//! - Thread-safe via cloning
+//! - Thread-safe with zero-copy Arc-based sharing (default)
+//!
+//! ## Performance
+//!
+//! State now uses `SharedState` (Arc<Mutex<PlainState>>) by default, providing:
+//! - ✅ Zero-copy state passing between nodes
+//! - ✅ Automatic cloning of Arc pointers (cheap)
+//! - ✅ No cloning overhead for large payloads
 //!
 //! ## Example
 //!
@@ -17,8 +24,8 @@
 //! use erenflow_ai::core::state::State;
 //! use serde_json::json;
 //!
-//! // Create new state
-//! let mut state = State::new();
+//! // Create new state (now SharedState by default)
+//! let state = State::new();
 //!
 //! // Add data
 //! state.set("user_input", json!("Hello, world!"));
@@ -38,16 +45,12 @@
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// Represents the mutable state shared across all nodes in graph execution.
+/// Inner state structure holding the actual JSON data.
 ///
-/// The State acts as a communication channel between nodes. Each node receives
-/// the current state, performs operations, and returns an updated state that
-/// flows to the next node. Think of it as a pipeline where data is gradually
-/// enriched as it flows through your agent.
-///
-/// Internally, it's a JSON object that provides flexible, untyped storage.
+/// Use `State` (which is `SharedState`) for normal operations.
+/// This is exported primarily for advanced users who need direct access.
 #[derive(Clone, Debug)]
-pub struct State {
+pub struct PlainState {
     data: serde_json::Map<String, Value>,
 }
 
@@ -55,17 +58,17 @@ pub struct State {
 // Constructor Methods
 // =============================================================================
 
-impl State {
+impl PlainState {
     /// Create a new, empty state.
     ///
     /// # Example
     /// ```
-    /// use erenflow_ai::core::state::State;
-    /// let state = State::new();
+    /// use erenflow_ai::core::state::PlainState;
+    /// let state = PlainState::new();
     /// assert_eq!(state.keys().count(), 0);
     /// ```
     pub fn new() -> Self {
-        State {
+        PlainState {
             data: serde_json::Map::new(),
         }
     }
@@ -77,16 +80,16 @@ impl State {
     ///
     /// # Example
     /// ```
-    /// use erenflow_ai::core::state::State;
+    /// use erenflow_ai::core::state::PlainState;
     /// use serde_json::json;
     ///
     /// let json = json!({"key": "value"});
-    /// let state = State::from_json(json)?;
+    /// let state = PlainState::from_json(json)?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn from_json(value: Value) -> crate::core::error::Result<Self> {
         match value {
-            Value::Object(map) => Ok(State { data: map }),
+            Value::Object(map) => Ok(PlainState { data: map }),
             _ => Err(crate::core::error::ErenFlowError::StateError(
                 "State must be a JSON object".to_string(),
             )),
@@ -98,15 +101,15 @@ impl State {
 // Data Access Methods
 // =============================================================================
 
-impl State {
+impl PlainState {
     /// Insert or replace a value in the state.
     ///
     /// # Example
     /// ```
-    /// use erenflow_ai::core::state::State;
+    /// use erenflow_ai::core::state::PlainState;
     /// use serde_json::json;
     ///
-    /// let mut state = State::new();
+    /// let mut state = PlainState::new();
     /// state.set("name", json!("Alice"));
     /// ```
     pub fn set(&mut self, key: impl Into<String>, value: Value) {
@@ -117,10 +120,10 @@ impl State {
     ///
     /// # Example
     /// ```
-    /// use erenflow_ai::core::state::State;
+    /// use erenflow_ai::core::state::PlainState;
     /// use serde_json::json;
     ///
-    /// let mut state = State::new();
+    /// let mut state = PlainState::new();
     /// state.set("name", json!("Alice"));
     /// assert_eq!(state.get("name").unwrap().as_str(), Some("Alice"));
     /// ```
@@ -161,15 +164,15 @@ impl State {
 // Inspection Methods
 // =============================================================================
 
-impl State {
+impl PlainState {
     /// Get an iterator over all keys in the state.
     ///
     /// # Example
     /// ```
-    /// use erenflow_ai::core::state::State;
+    /// use erenflow_ai::core::state::PlainState;
     /// use serde_json::json;
     ///
-    /// let mut state = State::new();
+    /// let mut state = PlainState::new();
     /// state.set("a", json!(1));
     /// state.set("b", json!(2));
     /// assert_eq!(state.keys().count(), 2);
@@ -195,15 +198,15 @@ impl State {
 // Type-Safe Access Methods
 // =============================================================================
 
-impl State {
+impl PlainState {
     /// Get a typed value from state, automatically deserializing from JSON.
     ///
     /// # Example
     /// ```
-    /// use erenflow_ai::core::state::State;
+    /// use erenflow_ai::core::state::PlainState;
     /// use serde_json::json;
     ///
-    /// let mut state = State::new();
+    /// let mut state = PlainState::new();
     /// state.set("count", json!(42));
     /// let count: i64 = state.get_typed("count")?;
     /// assert_eq!(count, 42);
@@ -330,7 +333,7 @@ impl State {
 // Conversion Methods
 // =============================================================================
 
-impl State {
+impl PlainState {
     /// Convert the state to a JSON value.
     pub fn to_value(&self) -> Value {
         Value::Object(self.data.clone())
@@ -340,10 +343,10 @@ impl State {
     ///
     /// # Example
     /// ```
-    /// use erenflow_ai::core::state::State;
+    /// use erenflow_ai::core::state::PlainState;
     /// use serde_json::json;
     ///
-    /// let mut state = State::new();
+    /// let mut state = PlainState::new();
     /// state.set("key", json!("value"));
     /// let json_str = state.to_json_string()?;
     /// println!("{}", json_str);  // {"key":"value"}
@@ -361,23 +364,60 @@ impl State {
     ///
     /// # Example
     /// ```
-    /// use erenflow_ai::core::state::State;
+    /// use erenflow_ai::core::state::PlainState;
     /// use serde_json::json;
     ///
-    /// let mut state1 = State::new();
+    /// let mut state1 = PlainState::new();
     /// state1.set("a", json!(1));
     ///
-    /// let mut state2 = State::new();
+    /// let mut state2 = PlainState::new();
     /// state2.set("b", json!(2));
     ///
     /// state1.merge(state2);
     /// assert!(state1.contains_key("a"));
     /// assert!(state1.contains_key("b"));
     /// ```
-    pub fn merge(&mut self, other: State) {
+    pub fn merge(&mut self, other: PlainState) {
         for (k, v) in other.data {
             self.data.insert(k, v);
         }
+    }
+
+    /// Get the LLM client from state (automatically injected by Agent if configured)
+    ///
+    /// The library automatically injects the LLM config into state if it's present in config.yaml.
+    /// This helper method extracts and creates the client.
+    ///
+    /// # Errors
+    /// Returns an error if LLM config is not found in state or client creation fails
+    /// Get the configured LLM client
+    ///
+    /// This method retrieves the LLM client that was automatically injected into state
+    /// by the Agent before execution. The client is lightweight and inexpensive to create,
+    /// so calling this method multiple times is safe and efficient.
+    ///
+    /// # Errors
+    /// Returns an error if:
+    /// - LLM is not configured in config.yaml
+    /// - The LLM configuration is invalid
+    /// - The API key is missing or invalid
+    ///
+    /// # Example
+    /// ```ignore
+    /// #[register_handler]
+    /// pub async fn my_handler(mut state: State) -> Result<State> {
+    ///     let llm = state.get_llm_client()?;
+    ///     let response = llm.chat(messages).await?;
+    ///     state.set("output", json!(response.content));
+    ///     Ok(state)
+    /// }
+    /// ```
+    pub fn get_llm_client(&self) -> crate::core::error::Result<std::sync::Arc<dyn crate::core::llm::LLMClient>> {
+        let config: crate::core::llm::LLMConfig = self.get_typed("_llm_config")
+            .map_err(|_| crate::core::error::ErenFlowError::ConfigError(
+                "LLM config not found in state. Make sure LLM is configured in config.yaml".to_string()
+            ))?;
+        config.create_client()
     }
 }
 
@@ -385,22 +425,40 @@ impl State {
 // Trait Implementations
 // =============================================================================
 
-impl Default for State {
+impl Default for PlainState {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl From<HashMap<String, Value>> for State {
+impl From<HashMap<String, Value>> for PlainState {
     fn from(map: HashMap<String, Value>) -> Self {
         let mut data = serde_json::Map::new();
         for (k, v) in map {
             data.insert(k, v);
         }
-        State { data }
+        PlainState { data }
     }
 }
 
 // Sub-module for state validation
 pub mod state_validation;
 pub use state_validation::*;
+
+// Shared state wrapper for zero-copy state management
+pub mod shared;
+pub use shared::SharedState;
+
+// =============================================================================
+// Type Alias: State = SharedState (Default)
+// =============================================================================
+
+/// Type alias making `SharedState` the default.
+///
+/// All handlers use `State` which is now backed by `SharedState` for:
+/// - Zero-copy state passing between nodes
+/// - Automatic Arc pointer cloning (cheap, not data cloning)
+/// - No overhead for large JSON payloads
+///
+/// For users who need the original non-shared behavior, use `PlainState` directly.
+pub type State = SharedState;

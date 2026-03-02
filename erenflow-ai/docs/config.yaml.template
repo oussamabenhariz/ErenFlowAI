@@ -1,3 +1,4 @@
+```plaintext
 # ErenFlowAI Agent Configuration Template
 # 
 # This is a template configurations for creating your ErenFlowAI agent.
@@ -73,13 +74,11 @@ graph:
       handler: handlers::input_processor
       # timeout: 10              # Optional: timeout in seconds
       # retries: 3               # Optional: auto-retry count
-      # uses_llm: false          # Set to true if this handler uses the LLM
 
     # Node 2: Generate Response
     - name: generate_response
       description: "Generate response using LLM"
       handler: handlers::generate_response
-      uses_llm: true            # This node uses the configured LLM
       timeout: 20
 
     # Add more nodes as needed...
@@ -214,3 +213,5 @@ middleware:
 #       sample_rate: 1.0
 #     - name: llm_calls
 #       sample_rate: 0.5
+
+```

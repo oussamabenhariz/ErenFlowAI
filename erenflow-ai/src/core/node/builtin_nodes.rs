@@ -104,7 +104,7 @@ impl LLMNode {
 
 #[async_trait]
 impl PluggableNode for LLMNode {
-    async fn run(&self, mut state: State) -> Result<NodeOutput<State>> {
+    async fn run(&self, state: State) -> Result<NodeOutput<State>> {
         let start = Instant::now();
 
         // Interpolate prompt with state variables
@@ -207,7 +207,7 @@ impl ToolNode {
 
 #[async_trait]
 impl PluggableNode for ToolNode {
-    async fn run(&self, mut state: State) -> Result<NodeOutput<State>> {
+    async fn run(&self, state: State) -> Result<NodeOutput<State>> {
         let start = Instant::now();
 
         // Map state values to tool parameters
@@ -306,7 +306,7 @@ impl ConditionalRouter {
 
 #[async_trait]
 impl PluggableNode for ConditionalRouter {
-    async fn run(&self, mut state: State) -> Result<NodeOutput<State>> {
+    async fn run(&self, state: State) -> Result<NodeOutput<State>> {
         let start = Instant::now();
 
         // Check each routing rule
@@ -503,7 +503,7 @@ impl PluggableNode for TimeoutNode {
             Err(_) => match self.config.on_timeout.as_str() {
                 "skip" => Ok(NodeOutput::success(state).with_duration(start.elapsed())),
                 "default_value" => {
-                    let mut result_state = state;
+                    let result_state = state;
                     if let Some(default) = &self.config.default_value {
                         result_state.set("_timeout_default", default.clone());
                     }
@@ -581,7 +581,7 @@ impl HumanInTheLoopNode {
 
 #[async_trait]
 impl PluggableNode for HumanInTheLoopNode {
-    async fn run(&self, mut state: State) -> Result<NodeOutput<State>> {
+    async fn run(&self, state: State) -> Result<NodeOutput<State>> {
         let start = Instant::now();
 
         // In a real implementation, this would:

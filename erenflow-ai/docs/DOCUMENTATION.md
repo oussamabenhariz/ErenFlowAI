@@ -1,3 +1,4 @@
+````markdown
 # ErenFlowAI Documentation Index
 
 Welcome to ErenFlowAI! This is a LangGraph-inspired Rust library for building AI agents with graph-based workflows.
@@ -156,11 +157,10 @@ llm:
   api_key: ${OPENAI_API_KEY}
 ```
 
-Then mark handlers that use LLMs:
-```yaml
-- name: my_handler
-  handler: handlers::generate_response
-  uses_llm: true
+Then access the LLM in your handlers:
+```rust
+let llm = state.get_llm_client()?;  // Get the configured LLM client
+let response = llm.chat(messages).await?;  // Use it
 ```
 
 See [CONFIG_GUIDE.md#llm-configuration-required](CONFIG_GUIDE.md) for all providers.
@@ -399,3 +399,5 @@ MIT License - See LICENSE file
 ---
 
 **Happy building! 🚀**
+
+````

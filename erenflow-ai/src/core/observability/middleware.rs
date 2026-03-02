@@ -2,9 +2,10 @@
 //!
 //! Collects execution traces, node timings, token usage, and failure snapshots.
 
+use async_trait::async_trait;
 use crate::core::error::ErenFlowError;
 use crate::core::middleware::{
-    async_trait::async_trait, ExecutionContext, Middleware, MiddlewareResult,
+    ExecutionContext, Middleware, MiddlewareResult,
 };
 use crate::core::state::State;
 use std::collections::HashMap;
@@ -87,10 +88,9 @@ impl Default for ObservabilityMiddleware {
 impl Middleware for ObservabilityMiddleware {
     async fn before_node(&self, _ctx: &mut ExecutionContext) -> MiddlewareResult {
         if let Some(ref name) = &self.agent_name {
-            if let Ok(mut trace) = self.trace.write().await {
-                if trace.agent_name.is_none() {
-                    trace.agent_name = Some(name.clone());
-                }
+            let mut trace = self.trace.write().await;
+            if trace.agent_name.is_none() {
+                trace.agent_name = Some(name.clone());
             }
         }
         MiddlewareResult::Continue
@@ -100,13 +100,12 @@ impl Middleware for ObservabilityMiddleware {
         let elapsed = ctx.elapsed_ms();
         let start_time = chrono::Utc::now() - chrono::Duration::milliseconds(elapsed as i64);
 
-        if let Ok(mut trace) = self.trace.write().await {
-            trace.record_node(&ctx.node_name, elapsed as u64, start_time);
+        let mut trace = self.trace.write().await;
+        trace.record_node(&ctx.node_name, elapsed as u64, start_time);
 
-            // Aggregate token usage if handler set it
-            if let Some(usage) = Self::extract_token_usage(&ctx.state) {
-                trace.add_token_usage(&usage);
-            }
+        // Aggregate token usage if handler set it
+        if let Some(usage) = Self::extract_token_usage(&ctx.state) {
+            trace.add_token_usage(&usage);
         }
 
         MiddlewareResult::Continue
@@ -118,43 +117,41 @@ impl Middleware for ObservabilityMiddleware {
         error: &ErenFlowError,
         ctx: &ExecutionContext,
     ) -> MiddlewareResult {
-        if let Ok(mut trace) = self.trace.write().await {
-            trace.mark_failed(node_name, error.to_string());
-            trace.complete();
+        let mut trace = self.trace.write().await;
+        trace.mark_failed(node_name, error.to_string());
+        trace.complete();
 
-            if self.capture_failure_snapshots {
-                let snapshot = FailureSnapshot {
-                    trace_id: trace.trace_id.clone(),
-                    failed_node: node_name.to_string(),
-                    error_message: error.to_string(),
-                    state_snapshot: Self::state_to_snapshot(&ctx.state, self.max_snapshot_size),
-                    execution_path: trace.execution_path(),
-                    node_timings: trace
-                        .node_timings
-                        .iter()
-                        .map(|t| (t.node_name.clone(), t.duration_ms))
-                        .collect::<HashMap<_, _>>(),
-                    token_usage: Some(trace.token_usage.clone()),
-                    timestamp: chrono::Utc::now(),
-                };
-                trace.metadata.insert(
-                    "failure_snapshot".to_string(),
-                    serde_json::to_value(snapshot).unwrap_or_default(),
-                );
-            }
+        if self.capture_failure_snapshots {
+            let snapshot = FailureSnapshot {
+                trace_id: trace.trace_id.clone(),
+                failed_node: node_name.to_string(),
+                error_message: error.to_string(),
+                state_snapshot: Self::state_to_snapshot(&ctx.state, self.max_snapshot_size),
+                execution_path: trace.execution_path(),
+                node_timings: trace
+                    .node_timings
+                    .iter()
+                    .map(|t| (t.node_name.clone(), t.duration_ms))
+                    .collect::<HashMap<_, _>>(),
+                token_usage: Some(trace.token_usage.clone()),
+                timestamp: chrono::Utc::now(),
+            };
+            trace.metadata.insert(
+                "failure_snapshot".to_string(),
+                serde_json::to_value(snapshot).unwrap_or_default(),
+            );
         }
 
         MiddlewareResult::Continue
     }
 
     async fn on_complete(&self, final_state: &State) {
-        if let Ok(mut trace) = self.trace.write().await {
-            if matches!(trace.status, TraceStatus::Completed) {
-                trace.complete();
-            }
-            if let Some(usage) = Self::extract_token_usage(final_state) {
-                trace.add_token_usage(&usage);
-            }
+        let mut trace = self.trace.write().await;
+        if matches!(trace.status, TraceStatus::Completed) {
+            trace.complete();
+        }
+        if let Some(usage) = Self::extract_token_usage(final_state) {
+            trace.add_token_usage(&usage);
         }
     }
 

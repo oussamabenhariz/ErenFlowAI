@@ -45,13 +45,13 @@
 
 pub mod core;
 
-// Re-export the register_handler macro
-pub use core::agent::{from_config_path, ArcHandler, HandlerEntry};
+// Re-export from core submodules
+pub use core::agent::{from_config_path, Agent, ArcHandler, HandlerEntry, Handler, HandlerRegistry};
 pub use core::config::AgentConfig;
 pub use core::error::{ErenFlowError, Result};
-pub use core::graph::Graph;
+pub use core::graph::{Graph, GraphBuilder};
 pub use core::runtime::AgentRuntime;
-pub use core::state::State;
+pub use core::state::{State, PlainState, SharedState};
 pub use erenflow_ai_macros::register_handler;
 
 /// Prelude module for commonly used types and macros.
@@ -72,9 +72,9 @@ pub mod prelude {
     pub use crate::core::agent::from_config_path;
     pub use crate::core::agent::{Agent, ArcHandler, Handler, HandlerEntry, HandlerRegistry};
     pub use crate::core::{
-        config::AgentConfig,
+        config::{AgentConfig, StateField},
         error::{ErenFlowError, Result},
-        graph::Graph,
+        graph::{Graph, GraphBuilder, routing::{Condition, ComparisonOp, RoutingCondition}},
         llm::{LLMConfig, LLMProvider, Message, MessageRole},
         mcp::MCPConfig,
         memory::{
@@ -82,11 +82,15 @@ pub mod prelude {
             ConversationMemoryConfig, InMemoryConversationMemory, MemoryCheckpointer, MemoryConfig,
         },
         node::{Node, NodeFunction},
-        rag::{
-            EmbeddingModel, Embeddings, RAGConfig, RetrievalConfig, RetrieverStrategy, VectorStore,
-        },
-        runtime::AgentRuntime,
-        state::State,
+        runtime::{AgentRuntime, CloneStats, OptimizedState},
+        state::{State, SharedState, PlainState},
     };
+    
+    pub use crate::core::rag::{
+        Document, EmbeddingModel, Embeddings, RAGConfig, RAGHandlers, RAGNodeConfig, RetrievalConfig, 
+        RetrieverStrategy, SearchResult, VectorStore, VectorStoreError,
+    };
+    
+    
     pub use crate::register_handler;
 }

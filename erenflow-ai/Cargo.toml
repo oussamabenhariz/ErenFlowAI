@@ -50,27 +50,10 @@ inventory = "0.1"
 # Procedural macros for handler registration
 erenflow-ai-macros = { version = "0.1", path = "../erenflow-ai-macros" }
 
-# Tracing UI (optional)
-axum = { version = "0.7", optional = true }
-tower-http = { version = "0.5", features = ["cors"], optional = true }
-
-# Visualization (optional, feature-gated)
-image = { version = "0.25", optional = true }
-imageproc = { version = "0.24", optional = true }
-ab_glyph = { version = "0.2", optional = true }
-ab_glyph_rasterizer = { version = "0.1", optional = true }
-svg = { version = "0.13", optional = true }
+# Visualization (SVG generation for graphs)
+svg = { version = "0.13" }
 
 [features]
-default = []
-# Visualization feature: generates SVG and PNG diagrams
-visualization = ["image", "imageproc", "ab_glyph", "ab_glyph_rasterizer", "svg"]
-# RAG feature: vector database and retrieval support
-rag = []
-# Observability: execution tracing, metrics, replay, failure snapshots
-observability = []
-# Built-in tracing UI (requires observability)
-observability-ui = ["observability", "axum", "tower-http"]
 
 [lib]
 name = "erenflow_ai"

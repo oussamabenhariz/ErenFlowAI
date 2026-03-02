@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
     println!("=== ErenFlowAI Example ===\n");
 
     // Create initial state
-    let mut state = State::new();
+    let state = State::empty();
     state.set("message", json!("Hello ErenFlowAI!"));
     state.set("step", json!(0));
 
